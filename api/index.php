@@ -530,7 +530,9 @@ try {
         $mx = db()->prepare("SELECT ticket_no FROM tickets WHERE ticket_no LIKE ? ORDER BY ticket_no DESC LIMIT 1");
         $mx->execute([$prefix.'%']);
         $last = $mx->fetch()['ticket_no'] ?? null;
-        $seq = $last ? ((int)substr($last, strlen($prefix)) + 1) : 1;
+        $seqStr = $last ? substr($last, strlen($prefix)) : '0';
+        $seq = (int)preg_replace('/[^0-9]/', '', $seqStr);
+        $seq = max(1, $seq + 1);
         $ticketNo = $prefix . str_pad((string)$seq,6,'0',STR_PAD_LEFT);
 
         try {
@@ -594,7 +596,9 @@ try {
         $mx = db()->prepare("SELECT ticket_no FROM tickets WHERE ticket_no LIKE ? ORDER BY ticket_no DESC LIMIT 1");
         $mx->execute([$prefix.'%']);
         $last = $mx->fetch()['ticket_no'] ?? null;
-        $seq = $last ? ((int)substr($last, strlen($prefix)) + 1) : 1;
+        $seqStr = $last ? substr($last, strlen($prefix)) : '0';
+        $seq = (int)preg_replace('/[^0-9]/', '', $seqStr);
+        $seq = max(1, $seq + 1);
         $ticketNo = $prefix . str_pad((string)$seq,6,'0',STR_PAD_LEFT);
 
         try {
