@@ -1,0 +1,14 @@
+# Dependencies
+/vendor/
+/api/vendor/
+node_modules/
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
