@@ -547,8 +547,9 @@ try {
           break; // Success, exit retry loop
         } catch(PDOException $e) {
           // Check for duplicate key error
-          // errorInfo[0] = SQLSTATE, errorInfo[1] = driver error code
-          $isDuplicate = ($e->errorInfo[0] ?? '') === '23000' || ($e->errorInfo[1] ?? 0) === 1062;
+          // Use errorInfo for SQLSTATE and driver-specific error code
+          $errorInfo = $e->errorInfo ?? [];
+          $isDuplicate = ($errorInfo[0] ?? '') === '23000' || ($errorInfo[1] ?? 0) === 1062;
           if($isDuplicate && $attempt < $maxRetries - 1) {
             // Retry on duplicate key
             continue;
@@ -614,8 +615,9 @@ try {
           break; // Success, exit retry loop
         } catch(PDOException $e) {
           // Check for duplicate key error
-          // errorInfo[0] = SQLSTATE, errorInfo[1] = driver error code
-          $isDuplicate = ($e->errorInfo[0] ?? '') === '23000' || ($e->errorInfo[1] ?? 0) === 1062;
+          // Use errorInfo for SQLSTATE and driver-specific error code
+          $errorInfo = $e->errorInfo ?? [];
+          $isDuplicate = ($errorInfo[0] ?? '') === '23000' || ($errorInfo[1] ?? 0) === 1062;
           if($isDuplicate && $attempt < $maxRetries - 1) {
             // Retry on duplicate key
             continue;
