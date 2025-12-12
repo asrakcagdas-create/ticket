@@ -1,0 +1,379 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Etkinlik</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<div class="header">
+  <a class="badge" href="/admin/index.html">← Geri</a>
+  <div>
+    <b id="evTitle">Etkinlik</b><br>
+    <span class="small" id="who"></span>
+  </div>
+  <a class="badge" href="#" id="logout">Çıkış</a>
+</div>
+
+<div class="wrap">
+
+<!-- SATIŞ AKIŞI -->
+<div class="card">
+  <b>Satış Akışı</b>
+  <div class="small">1) Kategori → 2) Kişi → 3) Öneri seç → 4) Grup adı → 5) Bilet</div>
+
+  <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+    <button class="btn gray" onclick="setCat('VIP')">VIP</button>
+    <button class="btn gray" onclick="setCat('GOLD')">GOLD</button>
+    <button class="btn gray" onclick="setCat('ST')">STANDART</button>
+    <button class="btn gray" onclick="setCat('LOCA')">LOCA</button>
+    <span class="badge" id="catBadge">Seçilmedi</span>
+  </div>
+
+  <div class="row" style="margin-top:10px;gap:8px">
+    <input class="input" id="persons" type="number" placeholder="Kaç kişi?" min="1" max="12" style="max-width:160px">
+    <button class="btn primary" onclick="suggest()">Öner</button>
+    <button class="btn gray" onclick="refreshAll()">Yenile</button>
+  </div>
+
+  <input class="input" id="groupName" placeholder="Grup adı (örn: Mustafa)" style="margin-top:10px">
+</div>
+
+<div id="chosenBox"></div>
+<div id="suggestions"></div>
+<div id="activeGroup"></div>
+
+<!-- YÖNETİM PANELLERİ -->
+<div class="card">
+  <b>Yönetim</b>
+  <div class="small">Eski kesilenler + aktif gruplar. Tıkla → aktif yap → bilet ekle.</div>
+  <div style="height:10px"></div>
+  <div class="row" style="gap:8px;flex-wrap:wrap">
+    <button class="btn gray" onclick="loadGroups()">Grupları Yenile</button>
+    <button class="btn gray" onclick="loadTickets()">Biletleri Yenile</button>
+  </div>
+</div>
+
+<div id="groupsList"></div>
+<div id="ticketsList"></div>
+
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+logout.onclick=()=>{
+  localStorage.removeItem("PIN");
+  location.href="/admin/login.html";
+};
+
+const url=new URL(location.href);
+const event_id=+url.searchParams.get('event_id');
+
+let me = null;
+let category = '';
+let chosen = null;
+let activeGroupId = null;
+
+function setCat(c){
+  category=c;
+  catBadge.innerText = c;
+  suggestions.innerHTML='';
+  chosenBox.innerHTML='';
+  chosen=null;
+}
+
+async function boot(){
+  me = await whoAmI();
+  if(me) who.innerText = me.name + " (" + me.role + ")";
+  const r = await apiGet('event.get',{event_id});
+  if(r.ok) evTitle.innerText = r.event.title + " – " + r.event.event_date;
+
+  await refreshAll();
+}
+boot();
+
+async function refreshAll(){
+  await loadGroups();
+  await loadTickets();
+  if(activeGroupId) await refreshGroup();
+}
+
+async function suggest(){
+  const p = +persons.value||0;
+  if(!category){ alert('Kategori seç'); return; }
+  if(p<=0){ alert('Kişi sayısı gir'); return; }
+
+  chosen=null;
+  chosenBox.innerHTML='';
+
+  const r = await apiGet('tables.suggest',{event_id, category, persons:p});
+  if(!r.ok){ alert('Öneri hatası: '+(r.error||'')); return; }
+
+  if(!r.suggestions.length){
+    suggestions.innerHTML = `<div class="card"><b>Uygun masa yok.</b></div>`;
+    return;
+  }
+
+  suggestions.innerHTML = `
+    <div class="card">
+      <b>Öneriler</b>
+      <div class="small">En iyi “yan yana” seçenekler. Birini seç.</div>
+      <div style="height:8px"></div>
+      ${r.suggestions.map((s,idx)=>{
+        const payload = encodeURIComponent(JSON.stringify(s));
+        return `
+          <div class="row" style="justify-content:space-between;margin-top:10px;gap:10px">
+            <div><b>Seçenek ${idx+1}:</b> ${s.codes.join(' + ')}</div>
+            <button class="btn primary" onclick="choose('${payload}')">Seç</button>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function choose(payload){
+  const s = JSON.parse(decodeURIComponent(payload));
+  chosen = s;
+
+  chosenBox.innerHTML = `
+    <div class="card">
+      <b>Seçilen Kombinasyon</b>
+      <div style="margin-top:6px;font-weight:900;font-size:18px">${s.codes.join(' + ')}</div>
+      <div class="small" style="margin-top:6px">Grup adını yazıp aşağıdaki butona bas.</div>
+      <div style="height:10px"></div>
+      <button class="btn primary" style="width:100%" onclick="createAndSell()">Grup Oluştur + 1 Bilet Kes</button>
+    </div>
+  `;
+}
+
+async function createAndSell(){
+  if(!chosen){ alert('Önce öneriden seçim yap'); return; }
+  const name = groupName.value.trim();
+  if(!name){ alert('Grup adı gir'); return; }
+
+  const g = await apiPost('group.create_auto',{
+    event_id,
+    category,
+    group_label:name,
+    table_ids: chosen.table_ids
+  });
+
+  if(!g.ok){
+    alert('Grup oluşturulamadı: ' + (g.error||'') + (g.detail ? ' ('+g.detail+')' : ''));
+    return;
+  }
+
+  activeGroupId = g.group_id;
+
+  const t = await apiPost('ticket.create',{event_id, group_id: activeGroupId});
+  if(!t.ok){
+    alert('Bilet kesilemedi: ' + (t.error||''));
+    return;
+  }
+
+  renderTicket(t.ticket_no, t.qr_url);
+  await refreshGroup();
+  await refreshAll();
+}
+
+async function addOne(){
+  if(!activeGroupId){ alert('Aktif grup yok'); return; }
+  const t = await apiPost('ticket.add',{group_id: activeGroupId});
+  if(!t.ok){
+    alert('Yer yok (DOLU)');
+    return;
+  }
+  renderTicket(t.ticket_no, t.qr_url);
+  await refreshGroup();
+  await loadTickets();
+}
+
+async function markPaid(){
+  if(!activeGroupId){ alert('Aktif grup yok'); return; }
+  const r = await apiPost('group.pay',{group_id: activeGroupId});
+  if(!r.ok){ alert('Ödeme işaretlenemedi'); return; }
+  await refreshGroup();
+  await loadGroups();
+}
+
+async function refreshGroup(){
+  if(!activeGroupId) return;
+  const r = await apiGet('group.status',{group_id: activeGroupId});
+  if(!r.ok) return;
+
+  const g = r.group;
+  const paid = g.paid_at ? `✅ Para alındı (${g.paid_by})` : `⏳ Ödeme bekliyor`;
+  const left = r.remaining;
+
+  activeGroup.innerHTML = `
+    <div class="card">
+      <b>Aktif Grup</b>
+      <div style="margin-top:6px;font-weight:900">${esc(g.group_code)}</div>
+      <div class="small">Grup: <b>${esc(g.group_label||'')}</b></div>
+      <div class="small">Kategori: <b>${esc(g.category||'')}</b></div>
+      <div class="small">Doluluk: <b>${g.sold}/${g.max_capacity}</b> • Kalan: <b>${left}</b></div>
+      <div style="height:10px"></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <button class="btn gray" onclick="addOne()">+1 Bilet</button>
+        <button class="btn primary" onclick="markPaid()">Para Alındı</button>
+        <span class="badge">${paid}</span>
+        ${left<=1 && left>0 ? `<span class="badge" style="background:#ef6c00;color:#fff">SON YER</span>` : ``}
+        ${left<=0 ? `<span class="badge" style="background:#b71c1c;color:#fff">DOLU</span>` : ``}
+      </div>
+    </div>
+  `;
+}
+
+function renderTicket(ticketNo, qrUrl){
+  const qrFull = location.origin + qrUrl;
+  const msg = `Biletiniz: ${ticketNo}\nQR: ${qrFull}\n7's Lounge`;
+  const seller = (who.innerText||'').split(' (')[0];
+
+  suggestions.innerHTML = '';
+  chosenBox.innerHTML = `
+    <div class="card">
+      <b>Son Bilet Kesildi</b>
+      <div style="margin-top:6px;font-weight:900;font-size:20px">${esc(ticketNo)}</div>
+      <div class="small">Satış yapan: <b>${esc(seller)}</b></div>
+      <div style="height:10px"></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <a class="badge" target="_blank" href="${qrUrl}">QR Aç</a>
+        <a class="badge" target="_blank" href="https://wa.me/?text=${encodeURIComponent(msg)}">WhatsApp</a>
+      </div>
+    </div>
+  `;
+}
+
+/* ====================== LISTE: GRUPLAR ====================== */
+
+async function loadGroups(){
+  const r = await apiGet('groups.by_event',{event_id});
+  if(!r.ok){ groupsList.innerHTML=''; return; }
+
+  // group_id bazlı birleştir: aynı group için birden fazla satır geliyor (table join)
+  const map = new Map();
+  for(const row of r.groups){
+    if(!map.has(row.id)){
+      map.set(row.id,{
+        id: row.id,
+        category: row.category,
+        group_code: row.group_code,
+        group_label: row.group_label,
+        status: row.status,
+        sold: +row.sold,
+        max_capacity: +row.max_capacity,
+        paid_at: row.paid_at,
+        paid_by: row.paid_by,
+        tables: []
+      });
+    }
+    map.get(row.id).tables.push(row.table_code || row.group_code);
+  }
+  const groups = Array.from(map.values())
+    .sort((a,b)=>{
+      const order = {VIP:1,GOLD:2,ST:3,LOCA:4};
+      return (order[a.category]||9) - (order[b.category]||9);
+    });
+
+  groupsList.innerHTML = `
+    <div class="card">
+      <b>Gruplar</b>
+      <div class="small">Tıkla → aktif yap. (Sonra +1 bilet kesebilirsin)</div>
+      <div style="height:10px"></div>
+      ${groups.map(g=>{
+        const paid = g.paid_at ? `✅ ${esc(g.paid_by||'')}` : `⏳`;
+        const pill = g.status==='FULL'
+          ? `<span class="badge" style="background:#b71c1c;color:#fff">DOLU</span>`
+          : g.status==='LOCKED'
+            ? `<span class="badge">KİLİTLİ</span>`
+            : `<span class="badge">AÇIK</span>`;
+
+        return `
+          <div class="row" style="justify-content:space-between;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
+            <div>
+              <b>${esc(g.group_code)}</b> <span class="badge">${esc(g.category)}</span> ${pill}
+              <div class="small">
+                Grup: <b>${esc(g.group_label||'-')}</b> • ${g.sold}/${g.max_capacity} • Ödeme: ${paid}
+              </div>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button class="btn gray" onclick="setActiveGroup(${g.id})">Aktif Yap</button>
+              ${me && me.role==='admin' ? `<button class="btn gray" onclick="deleteGroup(${g.id})">Sil</button>` : ``}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+async function setActiveGroup(id){
+  activeGroupId = id;
+  await refreshGroup();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+async function deleteGroup(groupId){
+  if(!confirm('Grubu silmek istiyor musun? (Admin)')) return;
+  const r = await apiPost('group.delete',{group_id: groupId});
+  if(!r.ok){ alert('Silinemedi'); return; }
+  if(activeGroupId===groupId) activeGroupId=null, activeGroup.innerHTML='';
+  await refreshAll();
+}
+
+/* ====================== LISTE: BILETLER ====================== */
+
+async function loadTickets(){
+  const r = await apiGet('tickets.by_event',{event_id, limit: 80});
+  if(!r.ok){ ticketsList.innerHTML=''; return; }
+
+  ticketsList.innerHTML = `
+    <div class="card">
+      <b>Son Biletler</b>
+      <div class="small">İptal eden kişi Admin’de görünür (cancelled_by) + log yazılır.</div>
+      <div style="height:10px"></div>
+
+      ${r.tickets.map(t=>{
+        const cancelled = t.cancelled_at ? true : false;
+        const status = cancelled
+          ? `<span class="badge" style="background:#b71c1c;color:#fff">İPTAL (${esc(t.cancelled_by||'')})</span>`
+          : `<span class="badge">AKTİF</span>`;
+
+        const actions = cancelled
+          ? ``
+          : `<button class="btn gray" onclick="cancelTicket(${t.id})">İptal</button>`;
+
+        return `
+          <div class="row" style="justify-content:space-between;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
+            <div>
+              <b>${esc(t.ticket_no)}</b> ${status}
+              <div class="small">
+                Grup: <b>${esc(t.group_code||'')}</b> • ${esc(t.category||'')} • Satış: <b>${esc(t.sold_by||'')}</b>
+              </div>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <a class="badge" target="_blank" href="/api/qr.php?ticket_no=${encodeURIComponent(t.ticket_no)}">QR</a>
+              <button class="btn gray" onclick="setActiveGroup(${t.group_id})">Gruba Git</button>
+              ${actions}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+async function cancelTicket(ticketId){
+  if(!confirm('Bu bileti iptal etmek istiyor musun?')) return;
+  const r = await apiPost('ticket.cancel',{ticket_id: ticketId});
+  if(!r.ok){ alert('İptal edilemedi'); return; }
+  await loadTickets();
+  if(activeGroupId) await refreshGroup();
+}
+</script>
+
+</body>
+</html>

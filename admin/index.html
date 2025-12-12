@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7's Lounge – Admin</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<div class="header">
+  <b>7's Lounge</b>
+  <span class="small" id="userInfo"></span>
+  <a class="badge" href="#" id="logout">Çıkış</a>
+</div>
+
+<div class="wrap">
+
+  <div class="card" id="adminBox" style="display:none">
+    <div style="font-weight:900;font-size:18px">Yeni Etkinlik (Sadece Admin)</div>
+    <input class="input" id="title" placeholder="Etkinlik adı">
+    <input class="input" id="date" type="date" style="margin-top:8px">
+
+    <div class="row" style="margin-top:8px">
+      <input class="input" id="vip"  type="number" placeholder="VIP masa">
+      <input class="input" id="gold" type="number" placeholder="GOLD masa">
+      <input class="input" id="st"   type="number" placeholder="ST masa">
+    </div>
+
+    <button class="btn primary" id="create" style="margin-top:10px;width:100%">Etkinliği Oluştur</button>
+  </div>
+
+  <div id="events"></div>
+
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+logout.onclick=()=>{
+  localStorage.removeItem("PIN");
+  location.href="/admin/login.html";
+};
+
+async function load(){
+  const me = await whoAmI();
+  if(me){
+    userInfo.innerText = me.name + " (" + me.role + ")";
+    if(me.role === "admin") adminBox.style.display = "block";
+  }
+
+  const r = await apiGet('events.list');
+  if(!r.ok){
+    events.innerHTML = `<div class="card"><b>Hata:</b> ${esc(r.error||'')}</div>`;
+    return;
+  }
+
+  events.innerHTML = r.events.map(e=>`
+    <div class="card">
+      <b>${esc(e.title)}</b><br>
+      <span class="small">${esc(e.event_date)}</span>
+      <div style="height:10px"></div>
+      <button class="btn primary" onclick="openEv(${e.id})">Aç</button>
+    </div>
+  `).join('');
+}
+
+function openEv(id){
+  location.href="/admin/event.html?event_id="+encodeURIComponent(id);
+}
+
+create && (create.onclick = async ()=>{
+  const titleV = title.value.trim();
+  const dateV = date.value;
+  const vipN  = +vip.value||0;
+  const goldN = +gold.value||0;
+  const stN   = +st.value||0;
+
+  if(!titleV || !dateV){ alert('Eksik bilgi'); return; }
+
+  const r = await apiPost('event.create',{title:titleV,event_date:dateV});
+  if(!r.ok){ alert('Event hatası: '+(r.error||'')); return; }
+
+  const s = await apiPost('tables.seed',{vip:vipN,gold:goldN,st:stN});
+  if(!s.ok){ alert('Masa seed hatası'); return; }
+
+  alert('Etkinlik oluşturuldu');
+  load();
+});
+
+load();
+</script>
+
+</body>
+</html>

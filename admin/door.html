@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kapı Kontrol</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <div class="header">
+    <a class="badge" href="/admin/index.html">← Geri</a>
+    <div><b>Kapı Kontrol</b></div>
+    <span></span>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <div style="font-weight:800;font-size:18px">Ticket No gir / okut</div>
+      <div class="small">Şimdilik manuel. Kamera okutmayı sonra ekleyeceğiz.</div>
+      <div style="height:10px"></div>
+      <input class="input" id="t" placeholder="Örn: 7S-20250131-000123" />
+      <div style="height:10px"></div>
+      <button class="btn primary" id="go" style="width:100%">Check-in</button>
+    </div>
+
+    <div id="out"></div>
+  </div>
+
+  <script src="/assets/app.js"></script>
+  <script>
+    $("#go").onclick = async () => {
+      const ticket_no = $("#t").value.trim();
+      if(!ticket_no) return;
+      $("#out").innerHTML = `<div class="card">Kontrol ediliyor…</div>`;
+      const r = await apiPost("ticket.checkin", {ticket_no});
+      if(!r.ok){
+        $("#out").innerHTML = `<div class="card"><b>Hata:</b> ${esc(r.error||"")}</div>`;
+        return;
+      }
+      $("#out").innerHTML = `
+        <div class="card">
+          <div style="font-weight:900;font-size:20px">✅ Giriş OK</div>
+          <div class="small">Masa Ref: <b>${esc(r.group_code)}</b></div>
+          <div class="small">Gelen: <b>${r.checked_in}</b> / Satılan: <b>${r.sold}</b> / Max: <b>${r.max_capacity}</b></div>
+        </div>`;
+      $("#t").value = "";
+      $("#t").focus();
+    };
+  </script>
+</body>
+</html>
