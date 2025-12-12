@@ -1,15 +1,16 @@
 <?php
 declare(strict_types=1);
 
-// DB
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'ciik8ph9c_ticket');
-define('DB_USER', 'ciik8ph9c_ticket');
-define('DB_PASS', '123aresmm');
+// DB - read from environment variables with defaults
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_NAME', getenv('DB_NAME') ?: 'ciik8ph9c_ticket');
+define('DB_USER', getenv('DB_USER') ?: 'ciik8ph9c_ticket');
+define('DB_PASS', getenv('DB_PASS') ?: '123aresmm');
 define('DB_CHARSET', 'utf8mb4');
 
 // APP
-define('APP_NAME', "7's Lounge");
+define('APP_NAME', getenv('APP_NAME') ?: "7's Lounge");
+define('APP_ENV', getenv('APP_ENV') ?: 'production');
 
 // 6 haneli PIN'ler (değiştirebilirsin)
 define('ADMIN_PIN', '111111'); // Admin
@@ -20,4 +21,4 @@ define('SELLERS', [
 ]);
 
 // CORS
-define('CORS_ALLOW_ORIGIN', '*');
+define('CORS_ALLOW_ORIGIN', getenv('CORS_ALLOW_ORIGIN') ?: '*');
