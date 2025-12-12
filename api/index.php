@@ -5,6 +5,10 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
 
+// Ticket creation constants
+define('TICKET_RETRY_MAX', 4);
+define('TICKET_PAYMENT_METHOD', 'BAR');
+
 if (defined('CORS_ALLOW_ORIGIN') && CORS_ALLOW_ORIGIN) {
   header('Access-Control-Allow-Origin: ' . CORS_ALLOW_ORIGIN);
   header('Access-Control-Allow-Headers: Content-Type, X-PIN');
@@ -518,11 +522,10 @@ try {
       $prefix = ticket_prefix_for_date($dateYmd);
       
       // Optimistic retry logic for duplicate ticket_no
-      $maxRetries = 4;
       $ticketNo = null;
       $tid = null;
       
-      for($attempt = 0; $attempt < $maxRetries; $attempt++){
+      for($attempt = 0; $attempt < TICKET_RETRY_MAX; $attempt++){
         $mx = db()->prepare("SELECT ticket_no FROM tickets WHERE ticket_no LIKE ? ORDER BY ticket_no DESC LIMIT 1");
         $mx->execute([$prefix.'%']);
         $last = $mx->fetch()['ticket_no'] ?? null;
@@ -531,12 +534,12 @@ try {
         
         try{
           db()->prepare("INSERT INTO tickets (event_id,group_id,ticket_no,paid_method,sold_by)
-                         VALUES (?,?,?,'BAR',?)")
-            ->execute([$eventId,$groupId,$ticketNo,$u['name']]);
+                         VALUES (?,?,?,?,?)")
+            ->execute([$eventId,$groupId,$ticketNo,TICKET_PAYMENT_METHOD,$u['name']]);
           $tid = (int)db()->lastInsertId();
           break;
         }catch(PDOException $e){
-          if($e->getCode() === '23000' && $attempt < $maxRetries - 1){
+          if($e->getCode() === '23000' && $attempt < TICKET_RETRY_MAX - 1){
             // Integrity constraint violation, retry
             continue;
           }
@@ -582,11 +585,10 @@ try {
       $prefix = ticket_prefix_for_date($dateYmd);
       
       // Optimistic retry logic for duplicate ticket_no
-      $maxRetries = 4;
       $ticketNo = null;
       $tid = null;
       
-      for($attempt = 0; $attempt < $maxRetries; $attempt++){
+      for($attempt = 0; $attempt < TICKET_RETRY_MAX; $attempt++){
         $mx = db()->prepare("SELECT ticket_no FROM tickets WHERE ticket_no LIKE ? ORDER BY ticket_no DESC LIMIT 1");
         $mx->execute([$prefix.'%']);
         $last = $mx->fetch()['ticket_no'] ?? null;
@@ -595,12 +597,12 @@ try {
         
         try{
           db()->prepare("INSERT INTO tickets (event_id,group_id,ticket_no,paid_method,sold_by)
-                         VALUES (?,?,?,'BAR',?)")
-            ->execute([(int)$g['event_id'],$groupId,$ticketNo,$u['name']]);
+                         VALUES (?,?,?,?,?)")
+            ->execute([(int)$g['event_id'],$groupId,$ticketNo,TICKET_PAYMENT_METHOD,$u['name']]);
           $tid = (int)db()->lastInsertId();
           break;
         }catch(PDOException $e){
-          if($e->getCode() === '23000' && $attempt < $maxRetries - 1){
+          if($e->getCode() === '23000' && $attempt < TICKET_RETRY_MAX - 1){
             // Integrity constraint violation, retry
             continue;
           }
