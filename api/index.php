@@ -261,8 +261,14 @@ try {
       if($table==='') json_out(['ok'=>false,'error'=>'table required'],400);
       
       // Validate table name to prevent SQL injection
+      // Only allow alphanumeric characters and underscores
       if(!preg_match('/^[A-Za-z0-9_]+$/', $table)) {
         json_out(['ok'=>false,'error'=>'invalid table name'],400);
+      }
+      
+      // Additional validation: verify table exists
+      if(!table_exists($table)) {
+        json_out(['ok'=>false,'error'=>'table not found'],404);
       }
 
       $st = db()->prepare("SHOW COLUMNS FROM `$table`");
@@ -540,8 +546,10 @@ try {
           $tid = (int)db()->lastInsertId();
           break; // Success, exit retry loop
         } catch(PDOException $e) {
-          // Check for duplicate key error (SQLSTATE 23000)
-          if($e->getCode() === '23000' && $attempt < $maxRetries - 1) {
+          // Check for duplicate key error
+          // errorInfo[0] = SQLSTATE, errorInfo[1] = driver error code
+          $isDuplicate = ($e->errorInfo[0] ?? '') === '23000' || ($e->errorInfo[1] ?? 0) === 1062;
+          if($isDuplicate && $attempt < $maxRetries - 1) {
             // Retry on duplicate key
             continue;
           }
@@ -605,8 +613,10 @@ try {
           $tid = (int)db()->lastInsertId();
           break; // Success, exit retry loop
         } catch(PDOException $e) {
-          // Check for duplicate key error (SQLSTATE 23000)
-          if($e->getCode() === '23000' && $attempt < $maxRetries - 1) {
+          // Check for duplicate key error
+          // errorInfo[0] = SQLSTATE, errorInfo[1] = driver error code
+          $isDuplicate = ($e->errorInfo[0] ?? '') === '23000' || ($e->errorInfo[1] ?? 0) === 1062;
+          if($isDuplicate && $attempt < $maxRetries - 1) {
             // Retry on duplicate key
             continue;
           }
