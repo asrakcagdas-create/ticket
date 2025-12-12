@@ -1,0 +1,14 @@
+# Vendor directories
+/api/vendor/
+/vendor/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Log files
+*.log
+
+# Dependencies
+node_modules/
