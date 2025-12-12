@@ -1,0 +1,25 @@
+# Vendor directories
+/api/vendor/
+/vendor/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Log files
+*.log
+
+# Node modules
+node_modules/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
