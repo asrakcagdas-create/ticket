@@ -4,14 +4,25 @@
 -- 
 -- Prerequisites:
 -- 1. Ensure the tickets table exists
--- 2. Remove any existing duplicate ticket_no values before running this migration
+-- 2. Check for and resolve any existing duplicate ticket_no values before running
 --
--- To check for duplicates before running:
+-- To check for duplicates:
 -- SELECT ticket_no, COUNT(*) as count FROM tickets GROUP BY ticket_no HAVING count > 1;
+--
+-- To handle duplicates (example - adjust based on your business logic):
+-- -- Option 1: Keep oldest, mark others as cancelled
+-- UPDATE tickets t1
+-- SET cancelled_at = NOW(), cancelled_by = 'MIGRATION'
+-- WHERE id NOT IN (
+--   SELECT MIN(id) FROM tickets GROUP BY ticket_no
+-- ) AND ticket_no IN (
+--   SELECT ticket_no FROM tickets GROUP BY ticket_no HAVING COUNT(*) > 1
+-- );
 --
 -- To apply this migration:
 -- mysql -u [username] -p [database_name] < migrations/migration-01-add-unique-ticket-no.sql
 
 -- Add UNIQUE constraint on ticket_no
--- Using 255 as the key length to ensure compatibility with utf8mb4
-ALTER TABLE tickets ADD UNIQUE KEY uq_ticket_no (ticket_no(255));
+-- Note: Based on ticket_no format (e.g., "7S-20260131-000001"), we use a 50-character prefix
+-- which is sufficient for the expected format and improves index performance
+ALTER TABLE tickets ADD UNIQUE KEY uq_ticket_no (ticket_no(50));
