@@ -1,0 +1,17 @@
+# Vendor directories
+/vendor/
+/api/vendor/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Log files
+*.log
+
+# Node modules
+node_modules/
+
+# OS files
+.DS_Store
