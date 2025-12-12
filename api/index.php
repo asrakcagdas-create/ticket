@@ -82,7 +82,9 @@ function log_action(string $actor, string $action, string $entity, ?int $entityI
   try{
     $st = db()->prepare("INSERT INTO audit_log (actor, action, entity, entity_id, detail) VALUES (?,?,?,?,?)");
     $st->execute([$actor, $action, $entity, $entityId, json_encode($detail, JSON_UNESCAPED_UNICODE)]);
-  }catch(Throwable $e){}
+  }catch(Throwable $e){
+    error_log($e->getMessage());
+  }
 }
 
 function tables_table_name(): string{
@@ -257,6 +259,7 @@ try {
       auth_user_safe();
       $table = $_GET['table'] ?? '';
       if($table==='') json_out(['ok'=>false,'error'=>'table required'],400);
+      if(!preg_match('/^[A-Za-z0-9_]+$/', $table)) json_out(['ok'=>false,'error'=>'invalid table name'],400);
 
       $st = db()->prepare("SHOW COLUMNS FROM `$table`");
       $st->execute();
@@ -513,21 +516,39 @@ try {
       if($sold >= (int)$gr['max_capacity']) json_out(['ok'=>false,'error'=>'FULL'],400);
 
       $prefix = ticket_prefix_for_date($dateYmd);
-      $mx = db()->prepare("SELECT ticket_no FROM tickets WHERE ticket_no LIKE ? ORDER BY ticket_no DESC LIMIT 1");
-      $mx->execute([$prefix.'%']);
-      $last = $mx->fetch()['ticket_no'] ?? null;
-      $seq = $last ? ((int)substr($last, strlen($prefix)) + 1) : 1;
-      $ticketNo = $prefix . str_pad((string)$seq,6,'0',STR_PAD_LEFT);
-
-      db()->prepare("INSERT INTO tickets (event_id,group_id,ticket_no,paid_method,sold_by)
-                     VALUES (?,?,?,'CASH',?)")
-        ->execute([$eventId,$groupId,$ticketNo,$u['name']]);
+      
+      // Optimistic retry logic for duplicate ticket_no
+      $maxRetries = 4;
+      $ticketNo = null;
+      $tid = null;
+      
+      for($attempt = 0; $attempt < $maxRetries; $attempt++){
+        $mx = db()->prepare("SELECT ticket_no FROM tickets WHERE ticket_no LIKE ? ORDER BY ticket_no DESC LIMIT 1");
+        $mx->execute([$prefix.'%']);
+        $last = $mx->fetch()['ticket_no'] ?? null;
+        $seq = $last ? ((int)substr($last, strlen($prefix)) + 1) : 1;
+        $ticketNo = $prefix . str_pad((string)$seq,6,'0',STR_PAD_LEFT);
+        
+        try{
+          db()->prepare("INSERT INTO tickets (event_id,group_id,ticket_no,paid_method,sold_by)
+                         VALUES (?,?,?,'BAR',?)")
+            ->execute([$eventId,$groupId,$ticketNo,$u['name']]);
+          $tid = (int)db()->lastInsertId();
+          break;
+        }catch(PDOException $e){
+          if($e->getCode() === '23000' && $attempt < $maxRetries - 1){
+            // Integrity constraint violation, retry
+            continue;
+          }
+          // Retries exhausted or different error, rethrow
+          throw $e;
+        }
+      }
 
       if($sold+1 >= (int)$gr['max_capacity']){
         db()->prepare("UPDATE event_table_groups SET status='FULL' WHERE id=?")->execute([$groupId]);
       }
 
-      $tid = (int)db()->lastInsertId();
       log_action($u['name'],'TICKET_CREATE','ticket',$tid,['ticket_no'=>$ticketNo,'group_id'=>$groupId]);
 
       json_out(['ok'=>true,'ticket_no'=>$ticketNo,'qr_url'=>"/api/qr.php?ticket_no=".$ticketNo]);
@@ -559,21 +580,39 @@ try {
       $dateYmd = (string)$er['event_date'];
 
       $prefix = ticket_prefix_for_date($dateYmd);
-      $mx = db()->prepare("SELECT ticket_no FROM tickets WHERE ticket_no LIKE ? ORDER BY ticket_no DESC LIMIT 1");
-      $mx->execute([$prefix.'%']);
-      $last = $mx->fetch()['ticket_no'] ?? null;
-      $seq = $last ? ((int)substr($last, strlen($prefix)) + 1) : 1;
-      $ticketNo = $prefix . str_pad((string)$seq,6,'0',STR_PAD_LEFT);
-
-      db()->prepare("INSERT INTO tickets (event_id,group_id,ticket_no,paid_method,sold_by)
-                     VALUES (?,?,?,'CASH',?)")
-        ->execute([(int)$g['event_id'],$groupId,$ticketNo,$u['name']]);
+      
+      // Optimistic retry logic for duplicate ticket_no
+      $maxRetries = 4;
+      $ticketNo = null;
+      $tid = null;
+      
+      for($attempt = 0; $attempt < $maxRetries; $attempt++){
+        $mx = db()->prepare("SELECT ticket_no FROM tickets WHERE ticket_no LIKE ? ORDER BY ticket_no DESC LIMIT 1");
+        $mx->execute([$prefix.'%']);
+        $last = $mx->fetch()['ticket_no'] ?? null;
+        $seq = $last ? ((int)substr($last, strlen($prefix)) + 1) : 1;
+        $ticketNo = $prefix . str_pad((string)$seq,6,'0',STR_PAD_LEFT);
+        
+        try{
+          db()->prepare("INSERT INTO tickets (event_id,group_id,ticket_no,paid_method,sold_by)
+                         VALUES (?,?,?,'BAR',?)")
+            ->execute([(int)$g['event_id'],$groupId,$ticketNo,$u['name']]);
+          $tid = (int)db()->lastInsertId();
+          break;
+        }catch(PDOException $e){
+          if($e->getCode() === '23000' && $attempt < $maxRetries - 1){
+            // Integrity constraint violation, retry
+            continue;
+          }
+          // Retries exhausted or different error, rethrow
+          throw $e;
+        }
+      }
 
       if(((int)$g['sold']+1) >= (int)$g['max_capacity']){
         db()->prepare("UPDATE event_table_groups SET status='FULL' WHERE id=?")->execute([$groupId]);
       }
 
-      $tid = (int)db()->lastInsertId();
       log_action($u['name'],'TICKET_ADD','ticket',$tid,['ticket_no'=>$ticketNo,'group_id'=>$groupId]);
 
       json_out(['ok'=>true,'ticket_no'=>$ticketNo,'qr_url'=>"/api/qr.php?ticket_no=".$ticketNo]);
@@ -613,5 +652,6 @@ try {
   }
 
 } catch(Throwable $e){
-  json_out(['ok'=>false,'error'=>'server_error','detail'=>$e->getMessage()],500);
+  error_log($e->getMessage() . "\n" . $e->getTraceAsString());
+  json_out(['ok'=>false,'error'=>'server_error'],500);
 }
