@@ -2,4 +2,4 @@
 
 
 <?php
-// helpers.php – intentionally empty
+// helpers.php - intentionally empty
