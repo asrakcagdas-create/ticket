@@ -16,6 +16,11 @@
 
 <div class="wrap">
 
+  <div class="card" id="greetingBox" style="display:none">
+    <div style="font-size:24px;font-weight:900" id="greetingText"></div>
+    <div class="small" style="margin-top:6px">7's Lounge yönetim paneline hoş geldiniz.</div>
+  </div>
+
   <div class="card" id="adminBox" style="display:none">
     <div style="font-weight:900;font-size:18px">Yeni Etkinlik (Sadece Admin)</div>
     <input class="input" id="title" placeholder="Etkinlik adı">
@@ -45,6 +50,8 @@ async function load(){
   const me = await whoAmI();
   if(me){
     userInfo.innerText = me.name + " (" + me.role + ")";
+    greetingText.innerHTML = `Selam, ${esc(me.name)}! 👋`;
+    greetingBox.style.display = "block";
     if(me.role === "admin") adminBox.style.display = "block";
   }
 
