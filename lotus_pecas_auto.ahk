@@ -265,7 +265,8 @@ HasPoint(key){
   yKey := key . "_Y"
   IniRead, x, %cfgFile%, P, %xKey%
   IniRead, y, %cfgFile%, P, %yKey%
-  return (x != "" && y != "")
+  ; Check for ERROR (returned when key not found) or empty string
+  return (x != "" && x != "ERROR" && y != "" && y != "ERROR")
 }
 
 LoadPoint(key){
@@ -275,8 +276,9 @@ LoadPoint(key){
   yKey := key . "_Y"
   IniRead, x, %cfgFile%, P, %xKey%, 0
   IniRead, y, %cfgFile%, P, %yKey%, 0
-  x := x + 0
-  y := y + 0
+  ; Convert to numeric, handling ERROR case (converts to 0)
+  x := (x = "ERROR") ? 0 : (x + 0)
+  y := (y = "ERROR") ? 0 : (y + 0)
   return {x:x, y:y}
 }
 
