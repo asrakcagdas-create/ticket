@@ -28,23 +28,25 @@
 
   <script src="/assets/app.js"></script>
   <script>
-    $("#go").onclick = async () => {
-      const ticket_no = $("#t").value.trim();
+    const $ = (id) => document.getElementById(id);
+    
+    $("go").onclick = async () => {
+      const ticket_no = $("t").value.trim();
       if(!ticket_no) return;
-      $("#out").innerHTML = `<div class="card">Kontrol ediliyor…</div>`;
+      $("out").innerHTML = `<div class="card">Kontrol ediliyor…</div>`;
       const r = await apiPost("ticket.checkin", {ticket_no});
       if(!r.ok){
-        $("#out").innerHTML = `<div class="card"><b>Hata:</b> ${esc(r.error||"")}</div>`;
+        $("out").innerHTML = `<div class="card"><b>Hata:</b> ${esc(r.error||"")}</div>`;
         return;
       }
-      $("#out").innerHTML = `
+      $("out").innerHTML = `
         <div class="card">
           <div style="font-weight:900;font-size:20px">✅ Giriş OK</div>
           <div class="small">Masa Ref: <b>${esc(r.group_code)}</b></div>
           <div class="small">Gelen: <b>${r.checked_in}</b> / Satılan: <b>${r.sold}</b> / Max: <b>${r.max_capacity}</b></div>
         </div>`;
-      $("#t").value = "";
-      $("#t").focus();
+      $("t").value = "";
+      $("t").focus();
     };
   </script>
 </body>

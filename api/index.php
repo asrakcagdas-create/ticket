@@ -608,6 +608,61 @@ try {
       break;
     }
 
+    case 'ticket.checkin': {
+      $u = auth_user_safe();
+      $b = body_json();
+      $ticketNo = trim((string)($b['ticket_no'] ?? ''));
+      if($ticketNo === '') json_out(['ok'=>false,'error'=>'ticket_no required'],400);
+
+      // Find the ticket
+      $st = db()->prepare("
+        SELECT t.id, t.group_id, t.cancelled_at, t.event_id,
+               g.group_code, g.group_label, g.category, g.max_capacity
+        FROM tickets t
+        JOIN event_table_groups g ON g.id = t.group_id
+        WHERE t.ticket_no = ?
+        LIMIT 1
+      ");
+      $st->execute([$ticketNo]);
+      $ticket = $st->fetch();
+
+      if(!$ticket) json_out(['ok'=>false,'error'=>'TICKET_NOT_FOUND'],404);
+      if($ticket['cancelled_at']) json_out(['ok'=>false,'error'=>'TICKET_CANCELLED'],400);
+
+      // Update checked_in_at if column exists
+      if(col_exists('tickets', 'checked_in_at')){
+        db()->prepare("UPDATE tickets SET checked_in_at=NOW(), checked_in_by=? WHERE id=?")
+          ->execute([$u['name'], (int)$ticket['id']]);
+      }
+
+      // Get group statistics
+      $groupId = (int)$ticket['group_id'];
+      
+      // Count total sold (non-cancelled) tickets
+      $soldSt = db()->prepare("SELECT COUNT(*) c FROM tickets WHERE group_id=? AND cancelled_at IS NULL");
+      $soldSt->execute([$groupId]);
+      $sold = (int)($soldSt->fetch()['c'] ?? 0);
+
+      // Count checked-in tickets (if column exists)
+      $checkedIn = 0;
+      if(col_exists('tickets', 'checked_in_at')){
+        $checkedSt = db()->prepare("SELECT COUNT(*) c FROM tickets WHERE group_id=? AND checked_in_at IS NOT NULL AND cancelled_at IS NULL");
+        $checkedSt->execute([$groupId]);
+        $checkedIn = (int)($checkedSt->fetch()['c'] ?? 0);
+      }
+
+      log_action($u['name'],'TICKET_CHECKIN','ticket',(int)$ticket['id'],['ticket_no'=>$ticketNo,'group_id'=>$groupId]);
+
+      json_out([
+        'ok' => true,
+        'group_code' => $ticket['group_code'],
+        'checked_in' => $checkedIn,
+        'sold' => $sold,
+        'max_capacity' => (int)$ticket['max_capacity']
+      ]);
+      break;
+    }
+
     default:
       json_out(['ok'=>false,'error'=>'unknown route'],404);
   }
