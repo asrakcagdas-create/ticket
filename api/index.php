@@ -637,18 +637,25 @@ try {
 
       // Get group statistics
       $groupId = (int)$ticket['group_id'];
-      
-      // Count total sold (non-cancelled) tickets
-      $soldSt = db()->prepare("SELECT COUNT(*) c FROM tickets WHERE group_id=? AND cancelled_at IS NULL");
-      $soldSt->execute([$groupId]);
-      $sold = (int)($soldSt->fetch()['c'] ?? 0);
 
-      // Count checked-in tickets (if column exists)
-      $checkedIn = 0;
+      // Count total sold and checked-in tickets
       if(col_exists('tickets', 'checked_in_at')){
-        $checkedSt = db()->prepare("SELECT COUNT(*) c FROM tickets WHERE group_id=? AND checked_in_at IS NOT NULL AND cancelled_at IS NULL");
-        $checkedSt->execute([$groupId]);
-        $checkedIn = (int)($checkedSt->fetch()['c'] ?? 0);
+        $statsSt = db()->prepare("
+          SELECT 
+            COUNT(*) AS sold,
+            SUM(CASE WHEN checked_in_at IS NOT NULL THEN 1 ELSE 0 END) AS checked_in
+          FROM tickets 
+          WHERE group_id=? AND cancelled_at IS NULL
+        ");
+        $statsSt->execute([$groupId]);
+        $stats = $statsSt->fetch();
+        $sold = (int)($stats['sold'] ?? 0);
+        $checkedIn = (int)($stats['checked_in'] ?? 0);
+      } else {
+        $soldSt = db()->prepare("SELECT COUNT(*) c FROM tickets WHERE group_id=? AND cancelled_at IS NULL");
+        $soldSt->execute([$groupId]);
+        $sold = (int)($soldSt->fetch()['c'] ?? 0);
+        $checkedIn = 0;
       }
 
       log_action($u['name'],'TICKET_CHECKIN','ticket',(int)$ticket['id'],['ticket_no'=>$ticketNo,'group_id'=>$groupId]);
