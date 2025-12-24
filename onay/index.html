@@ -544,14 +544,14 @@
           return;
         }
 
-        
         if(!order.pluItems || !order.pluItems.length){
           alert("Bu siparişte PLU çözümlenemedi (OK satırı yok). Önce PLU eşleştirmesini düzelt.");
           btn.disabled = false;
           btn.textContent = "OK – Kasaya Bas (LOCK)";
           return;
         }
-const originalText = btn.textContent;
+
+        const originalText = btn.textContent;
         btn.disabled = true;
         btn.textContent = "Gönderiliyor...";
 
