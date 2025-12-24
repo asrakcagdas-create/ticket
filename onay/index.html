@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Kasa Onay Paneli</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --border:rgba(255,255,255,.12);
+      --text:#e9eef6;
+      --muted:rgba(233,238,246,.75);
+      --ok:#1bd66b;
+      --bad:#ff4d4d;
+      --free:#9aa3ad;
+      --card:rgba(255,255,255,.03);
+      --card2:rgba(0,0,0,.22);
+    }
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 30% 0%, #132131 0%, var(--bg) 55%, #070a0e 100%);
+      color:var(--text);
+    }
+    .topbar{
+      padding:14px 16px;
+      border-bottom:1px solid var(--border);
+      background:rgba(10,14,20,.7);
+      backdrop-filter: blur(6px);
+      position:sticky; top:0; z-index:5;
+      font-weight:900;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .topbar small{ color:var(--muted); font-weight:700; }
+    .wrap{ padding:16px; max-width:980px; margin:0 auto; }
+    .stack{ display:grid; gap:12px; }
+
+    .order{
+      border:1px solid var(--border);
+      background:linear-gradient(180deg, var(--card), rgba(255,255,255,.02));
+      border-radius:16px;
+      box-shadow: 0 14px 40px rgba(0,0,0,.35);
+      overflow:hidden;
+    }
+    .orderHead{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:12px 12px;
+      cursor:pointer;
+      user-select:none;
+      background:rgba(10,14,20,.45);
+    }
+    .left{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+    }
+    .chev{
+      width:26px; height:26px;
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:10px;
+      display:grid; place-items:center;
+      color:rgba(255,255,255,.85);
+      flex:0 0 auto;
+      transition: transform .15s ease;
+    }
+    .meta{ min-width:0; }
+    .meta .title{ font-weight:900; font-size:16px; }
+    .meta .sub{ color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    .badge{
+      font-weight:900;
+      font-size:12px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(0,0,0,.18);
+      flex:0 0 auto;
+    }
+    .bNew{ color:#ffd36b; border-color:rgba(255,211,107,.45); background:rgba(255,211,107,.08); }
+
+    .orderBody{
+      display:none;
+      padding:12px;
+      border-top:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.16);
+    }
+    .order.open .orderBody{ display:block; }
+    .order.open .chev{ transform: rotate(90deg); }
+
+    .items{ display:grid; gap:8px; margin-top:10px; }
+    .item{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      padding:8px 10px;
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      background:var(--card2);
+    }
+    .iname{ white-space:pre-wrap; line-height:1.25; }
+
+    .itag{
+      font-weight:900;
+      font-size:12px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.16);
+      flex:0 0 auto;
+      margin-left:8px;
+      background:rgba(0,0,0,.18);
+      display:flex;
+      align-items:center;
+      gap:8px;
+      max-width: 620px;
+      white-space: nowrap;
+    }
+    .itag .tagText{
+      display:block;
+      max-width: 340px;
+      overflow:hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .oktag{ color:var(--ok); border-color: rgba(27,214,107,.5); background: rgba(27,214,107,.08); }
+    .badtag{ color:var(--bad); border-color: rgba(255,77,77,.55); background: rgba(255,77,77,.08); }
+    .freetag{ color:var(--free); border-color: rgba(154,163,173,.55); background: rgba(154,163,173,.08); }
+
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:12px;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    .btn{
+      border:none;
+      border-radius:999px;
+      padding:10px 14px;
+      font-weight:900;
+      cursor:pointer;
+      user-select:none;
+    }
+    .btnOk{ background: var(--ok); color:#06210f; }
+    .btnDone{ background: rgba(255,255,255,.12); color:var(--text); border:1px solid rgba(255,255,255,.14); }
+    .btn[disabled]{ opacity:.35; cursor:not-allowed; }
+
+    .note{ color:var(--muted); font-size:12px; margin-top:8px; }
+
+    .btnMini{
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10);
+      color:#fff;
+      font-weight:900;
+      font-size:11px;
+      cursor:pointer;
+      flex:0 0 auto;
+    }
+    .btnMini[disabled]{ opacity:.45; cursor:not-allowed; }
+
+    .pluInput{
+      width:90px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(0,0,0,.25);
+      color:#fff;
+      font-weight:900;
+      font-size:12px;
+      outline:none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div>▦ Kasa Onay Paneli</div>
+    <small id="statusText">…</small>
+  </div>
+
+  <div class="wrap">
+    <div id="list" class="stack"></div>
+  </div>
+
+<script>
+(async function(){
+  // ✅ Ayna kaynağı
+  const ORDERS_URL  = "/onay/api/mirror_orders.php";
+
+  // ✅ Tek dosya: hem PLU hem mit seçimi (ref) burada
+  const PLU_URL     = "/onay/assets/plu_map.json";
+
+  const ALIAS_GET_URL  = "/onay/api/alias_get.php";
+  const ALIAS_SAVE_URL = "/onay/api/alias_save.php";
+  const PLU_SAVE_URL   = "/onay/api/plu_save.php";
+
+  // Kasa bas şimdilik dert değil ama buton dursun
+  const ENQUEUE_URL = "/onay/api/enqueue.php";
+
+  // ✅ KAPAT isteği (Admin-orders PC kapatacak)
+  const CLOSE_REQUEST_URL = "/onay/api/close_request.php";
+
+  const API_KEY = "ARES-LOTUS-2025";
+  const POLL_MS = 1500;
+
+  const list = document.getElementById("list");
+  const statusText = document.getElementById("statusText");
+
+  const orderById = new Map();
+  const openMap = new Map();
+
+  // ✅ CANON: dash/boşluk/noktalama farkları biter
+  function canon(s){
+    s = (s||"").toLowerCase();
+    s = s.replace(/[–—−]/g, "-");
+    s = s.replace(/\u00a0/g," ").replace(/\s+/g," ").trim();
+    s = s.replace(/['']/g,"");
+    s = s.replace(/(\d)\s*,\s*(\d)/g, "$1.$2");
+    s = s.replace(/[(),]/g, " ");
+    s = s.replace(/-/g, " ");
+    s = s.replace(/[×]/g, "x");
+    s = s.replace(/\s+/g, " ").trim();
+    return s;
+  }
+
+  // "mit" ayır
+  function splitMit(name){
+    const s = String(name||"");
+    const m = s.match(/\s*,?\smit\s+/i);
+    if(!m) return { hasMit:false, base:s.trim(), full:s.trim() };
+    const idx = m.index || 0;
+    const base = s.slice(0, idx).trim();
+    return { hasMit:true, base, full:s.trim() };
+  }
+
+  function stripExtraForLookup(name){
+    return (name||"")
+      .replace(/\s+extra\s*$/i, "")
+      .replace(/\s+/g," ")
+      .trim();
+  }
+
+  function isExtra(name){
+    return /\bextra\b/i.test(name||"");
+  }
+
+  async function getJson(url){
+    const r = await fetch(url, { cache:"no-store" });
+    const t = await r.text();
+    if(!r.ok) throw new Error(url + " HTTP " + r.status + " -> " + t.slice(0,200));
+    return JSON.parse(t || "null");
+  }
+
+  async function postJson(url, payload){
+    const r = await fetch(url, {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "X-KEY": API_KEY
+      },
+      body: JSON.stringify(payload || {})
+    });
+    const t = await r.text();
+    let j = null;
+    try { j = JSON.parse(t); } catch(e) {}
+    return { ok: r.ok, status:r.status, text:t, json:j };
+  }
+
+  function esc(s){
+    return String(s||"")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;");
+  }
+
+  let pluObj = null;
+  let aliasMap = null;
+
+  async function loadMapsOnce(){
+    if(pluObj && aliasMap) return { pluObj, aliasMap };
+
+    const [rawPlu, rawAlias] = await Promise.all([
+      getJson(PLU_URL),
+      getJson(ALIAS_GET_URL).catch(()=>({}))
+    ]);
+
+    const m = {};
+    Object.entries(rawPlu||{}).forEach(([k,v])=>{
+      const ck = canon(k);
+      if(v && typeof v === "object"){
+        const out = {};
+        if(v.plu !== undefined && v.plu !== null && v.plu !== "") out.plu = String(v.plu);
+        if(v.ref) out.ref = canon(String(v.ref));
+        if(v.mit) out.mit = String(v.mit);
+        m[ck] = out;
+      } else {
+        m[ck] = { plu: String(v) };
+      }
+    });
+
+    const a = {};
+    Object.entries(rawAlias||{}).forEach(([k,v]) => a[canon(k)] = canon(v));
+
+    pluObj = m;
+    aliasMap = a;
+    return { pluObj, aliasMap };
+  }
+
+  function resolveAlias(keyCanon){
+    return (aliasMap && aliasMap[keyCanon]) ? aliasMap[keyCanon] : keyCanon;
+  }
+
+  function resolvePluByCanon(fullCanon, baseCanon){
+    fullCanon = resolveAlias(fullCanon);
+    baseCanon = baseCanon ? resolveAlias(baseCanon) : "";
+
+    const e1 = pluObj[fullCanon];
+    if(e1){
+      if(e1.plu) return { plu:e1.plu, used:"FULL" };
+      if(e1.ref){
+        const eRef = pluObj[e1.ref];
+        if(eRef && eRef.plu) return { plu:eRef.plu, used:"REF" };
+      }
+    }
+
+    if(baseCanon){
+      const e2 = pluObj[baseCanon];
+      if(e2 && e2.plu) return { plu:e2.plu, used:"BASE" };
+    }
+
+    return { plu:null, used:"NONE" };
+  }
+
+  function statusBadge(status){
+    const s = (status||"NEW").toUpperCase();
+    return { cls:"badge bNew", text:s };
+  }
+
+  function buildRows(orderItems){
+    const rows = [];
+    let missing = 0;
+
+    for(const it of (orderItems||[])){
+      const qty = Number(it.qty)||1;
+      const original = String(it.name||"").trim();
+      const extra = isExtra(original);
+
+      const lookupName = stripExtraForLookup(original);
+      const sp = splitMit(lookupName);
+
+      const fullCanon = canon(sp.full);
+      const baseCanon = sp.hasMit ? canon(sp.base) : "";
+
+      const r = resolvePluByCanon(fullCanon, baseCanon);
+
+      if(r.plu && /^\d+$/.test(String(r.plu).trim())){
+        rows.push({
+          qty,
+          original: lookupName,
+          kind:"OK",
+          plu: Number(String(r.plu).trim()),
+          tag:`PLU ${r.plu}${extra ? " (EXTRA)" : ""}`,
+          fullCanon,
+          baseCanon,
+          hasMit: sp.hasMit
+        });
+      } else {
+        const allKeys = Object.keys(pluObj || {});
+        const keyForSuggest = fullCanon;
+
+        const suggestions = allKeys
+          .filter(k => k.includes(keyForSuggest) || keyForSuggest.includes(k))
+          .slice(0,3);
+
+        const sugOne = (suggestions.length === 1) ? suggestions[0] : "";
+        const sugTxt = suggestions.length ? ` | ÖNERİ: ${suggestions.join(" / ")}` : "";
+
+        rows.push({
+          qty,
+          original: lookupName,
+          kind:"BAD",
+          tag:`PLU YOK ❌${extra ? " (EXTRA)" : ""}${sugTxt}`,
+          rawKey: fullCanon,
+          sug: sugOne,
+          fullCanon,
+          baseCanon,
+          hasMit: sp.hasMit
+        });
+
+        missing++;
+      }
+    }
+
+    return { rows, missing };
+  }
+
+  function shortList(items){
+    return (items||[])
+      .slice(0,4)
+      .map(it => `${Number(it.qty)||1}x ${String(it.name||"").trim()}`)
+      .join(" • ");
+  }
+
+  function renderOrders(orders){
+    statusText.textContent = `Sipariş: ${orders.length}`;
+
+    if(!orders.length){
+      list.innerHTML = `<div class="order"><div class="orderHead"><div class="meta"><div class="title">Sipariş yok</div><div class="sub">Beklemede…</div></div></div></div>`;
+      return;
+    }
+
+    orderById.clear();
+
+    list.innerHTML = orders.map(o=>{
+      const id = o.key || o.id || "";
+      const table = o.table ?? "?";
+      const items = Array.isArray(o.items) ? o.items : [];
+
+      const normItems = items.map(it=>({ name: String(it.name||"").trim(), qty: Number(it.qty)||1 }));
+      const { rows, missing } = buildRows(normItems);
+      const pluItems = rows
+        .filter(x => x.kind === "OK" && Number.isFinite(x.plu))
+        .map(x => ({ plu: x.plu, qty: x.qty }));
+
+      orderById.set(id, {
+        id,
+        table,
+        area: o.area || "raucher",
+        items: normItems,
+        pluItems
+      });
+      const canApprove = (missing === 0);
+
+      const st = statusBadge("NEW");
+      const open = openMap.get(id) ? "open" : "";
+      const summary = `${items.length} satır • Eksik PLU: ${missing} • ${shortList(items)}`;
+
+      const itemsHtml = rows.map(r=>{
+        const tagClass = r.kind === "OK" ? "oktag" : (r.kind === "FREE" ? "freetag" : "badtag");
+
+        let controls = "";
+        if(r.kind === "BAD"){
+          const acceptBtn = (r.sug)
+            ? `<button class="btnMini" data-accept="${esc(r.rawKey)}" data-target="${esc(r.sug)}">KABUL ET</button>`
+            : "";
+
+          controls = `
+            ${acceptBtn}
+            <input class="pluInput" data-plu-input="${esc(r.rawKey)}" placeholder="PLU" inputmode="numeric">
+            <button class="btnMini"
+              data-plu-save="1"
+              data-full="${esc(r.fullCanon)}"
+              data-base="${esc(r.baseCanon)}"
+              data-hasmit="${r.hasMit ? "1":"0"}"
+            >KABUL (PLU)</button>
+          `;
+        }
+
+        return `
+          <div class="item">
+            <div class="iname">${esc(r.qty)}x ${esc(r.original)}</div>
+            <div class="itag ${tagClass}" title="${esc(r.tag)}">
+              <span class="tagText">${esc(r.tag)}</span>
+              ${controls}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      const note = canApprove
+        ? `<div class="note" style="color:var(--ok)">✅ BASILABİLİR</div>`
+        : `<div class="note" style="color:var(--bad)">❌ PLU HATASI VAR → BASILAMAZ</div>`;
+
+      return `
+        <div class="order ${open}" data-id="${esc(id)}">
+          <div class="orderHead" data-toggle="${esc(id)}">
+            <div class="left">
+              <div class="chev">›</div>
+              <div class="meta">
+                <div class="title">Masa ${esc(table)}</div>
+                <div class="sub">${esc(summary)}</div>
+              </div>
+            </div>
+            <div class="${st.cls}">${st.text}</div>
+          </div>
+
+          <div class="orderBody">
+            ${note}
+            <div class="items">${itemsHtml}</div>
+
+            <div class="actions">
+              <button class="btn btnOk" data-approve="${esc(id)}" ${canApprove ? "" : "disabled"}>
+                OK – Kasaya Bas (LOCK)
+              </button>
+
+              <button class="btn btnDone" data-done="${esc(id)}">
+                Kapat / Erledigt (DONE)
+              </button>
+            </div>
+
+            <div class="note">
+              Bu ekran AYNADIR: Siparişi gerçekten kapatmak için admin-orders'ta ERLEDIGT basılmalıdır.
+              Admin-orders'ta ERLEDIGT olunca burada otomatik kaybolur ✅
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    // ✅ Toggle (aynı)
+    list.querySelectorAll("[data-toggle]").forEach(el=>{
+      el.addEventListener("click", ()=>{
+        const id = el.getAttribute("data-toggle");
+        openMap.set(id, !openMap.get(id));
+        const card = el.closest(".order");
+        if(card) card.classList.toggle("open");
+      });
+    });
+
+    // ✅ Approve (aynı)
+    list.querySelectorAll("[data-approve]").forEach(btn=>{
+      btn.addEventListener("click", async (ev)=>{
+        ev.stopPropagation();
+
+        const id = btn.getAttribute("data-approve");
+        const card = btn.closest(".order");
+        const order = orderById.get(id);
+
+        if(!order || !order.id){
+          btn.textContent = "Hata: order yok";
+          btn.disabled = false;
+          return;
+        }
+
+        
+        if(!order.pluItems || !order.pluItems.length){
+          alert("Bu siparişte PLU çözümlenemedi (OK satırı yok). Önce PLU eşleştirmesini düzelt.");
+          btn.disabled = false;
+          btn.textContent = "OK – Kasaya Bas (LOCK)";
+          return;
+        }
+const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Gönderiliyor...";
+
+        const payload = { id: order.id, table: order.table, area: order.area, items: order.pluItems || [] };
+        const r = await postJson(ENQUEUE_URL, payload);
+        if(r.ok && r.json && r.json.ok){
+          btn.textContent = "Basıldı ✅";
+          const note = card?.querySelector(".note");
+          if(note) note.innerHTML = `<span style="color:var(--ok);font-weight:900;">Basıldı ✅</span>`;
+          return;
+        }
+
+        btn.disabled = false;
+        btn.textContent = originalText;
+        console.warn("[ARES] enqueue fail", r);
+        alert("Kasaya gönderme başarısız. Konsola bak.");
+      });
+    });
+
+    // ✅ DONE: artık alert değil -> close_request.php'ye gönder
+    list.querySelectorAll("[data-done]").forEach(btn=>{
+      btn.addEventListener("click", async (ev)=>{
+        ev.stopPropagation();
+
+        const key = btn.getAttribute("data-done");
+        const card = btn.closest(".order");
+
+        const title = card?.querySelector(".title")?.textContent || "";
+        const table = Number(String(title).replace(/\D+/g,"")) || 0;
+
+        const ok = confirm(
+          `${title || "Bu sipariş"}\n\n` +
+          `Admin-orders PC'de otomatik ERLEDIGT yapılacak.\n` +
+          `Kapat isteği gönderilsin mi?`
+        );
+        if(!ok) return;
+
+        const old = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Gönderiliyor...";
+
+        const r = await postJson(CLOSE_REQUEST_URL, { key, table });
+
+        if(r.ok && r.json && r.json.ok){
+          btn.textContent = "İstek Gönderildi ✅";
+          return;
+        }
+
+        btn.disabled = false;
+        btn.textContent = old;
+        console.warn("[ARES] close_request fail", r);
+        alert("Kapat isteği gönderilemedi. Konsola bak.");
+      });
+    });
+
+    // Alias kabul (aynı)
+    list.querySelectorAll("[data-accept]").forEach(btn=>{
+      btn.addEventListener("click", async (ev)=>{
+        ev.stopPropagation();
+        const rawKey = btn.getAttribute("data-accept");
+        const target = btn.getAttribute("data-target");
+
+        btn.disabled = true;
+        btn.textContent = "Kaydediliyor...";
+
+        const res = await postJson(ALIAS_SAVE_URL, { from: rawKey, to: target });
+        if(res.ok && res.json && res.json.ok){
+          aliasMap[canon(rawKey)] = canon(target);
+          btn.textContent = "Kaydedildi ✅";
+          setTimeout(()=>{ btn.textContent="KABUL ET"; btn.disabled=false; }, 600);
+        } else {
+          btn.disabled = false;
+          btn.textContent = "Hata!";
+          console.warn("[ARES] alias_save fail", res);
+        }
+      });
+    });
+
+    // PLU Kaydet + MIT sorusu (aynı)
+    list.querySelectorAll('button[data-plu-save="1"]').forEach(btn=>{
+      btn.addEventListener("click", async (ev)=>{
+        ev.stopPropagation();
+
+        const itag = btn.closest(".itag") || btn.closest(".item") || btn.parentElement;
+        const inp = itag ? itag.querySelector('input[data-plu-input]') : null;
+        const plu = (inp && inp.value || "").trim();
+
+        if(!plu){
+          btn.textContent = "PLU?";
+          setTimeout(()=>btn.textContent="KABUL (PLU)", 900);
+          return;
+        }
+
+        const hasMit = btn.getAttribute("data-hasmit") === "1";
+        const fullCanon = btn.getAttribute("data-full") || "";
+        const baseCanon = btn.getAttribute("data-base") || "";
+
+        btn.disabled = true;
+        btn.textContent = "Kaydediliyor...";
+
+        if(!hasMit || !baseCanon){
+          const res = await postJson(PLU_SAVE_URL, { key: fullCanon, plu });
+          if(res.ok && res.json && res.json.ok){
+            pluObj[fullCanon] = { plu: String(plu) };
+            btn.textContent = "Kaydedildi ✅";
+          } else {
+            btn.disabled = false;
+            btn.textContent = "Hata!";
+            console.warn("[ARES] plu_save fail", res);
+          }
+          return;
+        }
+
+        const choiceFull = confirm(
+          `MIT bulundu.\n\n` +
+          `OK = FULL kaydet (mit dahil)\n` +
+          `İPTAL = BASE kaydet (mit öncesi)\n\n` +
+          `Not: Seçim bir kere yapılır, bir daha sormaz.`
+        );
+
+        if(choiceFull){
+          const res = await postJson(PLU_SAVE_URL, { key: fullCanon, plu, mit:"FULL" });
+          if(res.ok && res.json && res.json.ok){
+            pluObj[fullCanon] = { plu: String(plu), mit:"FULL" };
+            btn.textContent = "Kaydedildi ✅";
+          } else {
+            btn.disabled = false;
+            btn.textContent = "Hata!";
+            console.warn("[ARES] plu_save fail", res);
+          }
+        } else {
+          const res1 = await postJson(PLU_SAVE_URL, { key: baseCanon, plu });
+          if(!(res1.ok && res1.json && res1.json.ok)){
+            btn.disabled = false;
+            btn.textContent = "Hata!";
+            console.warn("[ARES] plu_save base fail", res1);
+            return;
+          }
+
+          const res2 = await postJson(PLU_SAVE_URL, { key: fullCanon, ref: baseCanon, mit:"BASE" });
+          if(!(res2.ok && res2.json && res2.json.ok)){
+            btn.disabled = false;
+            btn.textContent = "Ref Hata!";
+            console.warn("[ARES] plu_save ref fail", res2);
+            return;
+          }
+
+          pluObj[baseCanon] = { plu: String(plu) };
+          pluObj[fullCanon] = { ref: baseCanon, mit:"BASE" };
+          btn.textContent = "Kaydedildi ✅";
+        }
+      });
+    });
+  }
+
+  let lastSig = "";
+  async function tick(){
+    await loadMapsOnce();
+
+    const data = await getJson(ORDERS_URL);
+
+    let orders = [];
+    if (Array.isArray(data)) orders = data;
+    else if (data && Array.isArray(data.orders)) orders = data.orders;
+
+    orders = orders.map(o => ({
+      ...o,
+      key: o.key || o.id || "",
+      table: Number(o.table)||0,
+      items: Array.isArray(o.items) ? o.items : []
+    })).filter(o => o.key && o.table > 0);
+
+    const sig = JSON.stringify(orders.map(o=>({k:o.key,t:o.table,i:o.items})));
+    if(sig === lastSig) return;
+    lastSig = sig;
+
+    if(orders[0] && orders[0].key && openMap.size===0){
+      openMap.set(orders[0].key, true);
+    }
+
+    renderOrders(orders);
+  }
+
+  try { await tick(); } catch(e){ console.error(e); }
+  setInterval(async ()=>{ try { await tick(); } catch(e){ console.error(e); } }, POLL_MS);
+
+})();
+</script>
+
+</body>
+</html>
