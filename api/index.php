@@ -612,6 +612,7 @@ try {
       auth_user_safe();
       if(!table_exists('menu_items')){
         json_out(['ok'=>true,'items'=>[]]);
+        break;
       }
       $st = db()->query("SELECT * FROM menu_items WHERE is_active=1 ORDER BY category, name");
       json_out(['ok'=>true,'items'=>$st->fetchAll()]);
@@ -735,6 +736,7 @@ try {
 
       if(!table_exists('orders')){
         json_out(['ok'=>true,'orders'=>[]]);
+        break;
       }
 
       $where = [];
@@ -761,11 +763,27 @@ try {
       $st->execute($params);
       $orders = $st->fetchAll();
 
-      // Get items for each order
-      foreach($orders as &$order){
-        $items = db()->prepare("SELECT * FROM order_items WHERE order_id=?");
-        $items->execute([$order['id']]);
-        $order['items'] = $items->fetchAll();
+      // Fix N+1 query: Get all items in one query
+      if(count($orders) > 0){
+        $orderIds = array_map(fn($o) => (int)$o['id'], $orders);
+        $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+        $itemsSt = db()->prepare("SELECT * FROM order_items WHERE order_id IN ($placeholders) ORDER BY order_id, id");
+        $itemsSt->execute($orderIds);
+        $allItems = $itemsSt->fetchAll();
+        
+        // Group items by order_id
+        $itemsByOrder = [];
+        foreach($allItems as $item){
+          $oid = (int)$item['order_id'];
+          if(!isset($itemsByOrder[$oid])) $itemsByOrder[$oid] = [];
+          $itemsByOrder[$oid][] = $item;
+        }
+        
+        // Attach items to orders
+        foreach($orders as &$order){
+          $order['items'] = $itemsByOrder[(int)$order['id']] ?? [];
+        }
+        unset($order);
       }
 
       json_out(['ok'=>true,'orders'=>$orders]);
@@ -786,10 +804,14 @@ try {
         json_out(['ok'=>false,'error'=>'invalid status'],400);
       }
 
-      $completed = ($status === 'DELIVERED' || $status === 'CANCELLED') ? "NOW()" : "NULL";
-      
-      db()->prepare("UPDATE orders SET status=?, completed_at=$completed WHERE id=?")
-        ->execute([$status, $orderId]);
+      // Fix SQL injection: use conditional query instead of string interpolation
+      if($status === 'DELIVERED' || $status === 'CANCELLED'){
+        db()->prepare("UPDATE orders SET status=?, completed_at=NOW() WHERE id=?")
+          ->execute([$status, $orderId]);
+      } else {
+        db()->prepare("UPDATE orders SET status=?, completed_at=NULL WHERE id=?")
+          ->execute([$status, $orderId]);
+      }
 
       log_action($u['name'],'ORDER_UPDATE_STATUS','order',$orderId,['status'=>$status]);
       json_out(['ok'=>true]);
