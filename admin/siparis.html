@@ -1,0 +1,138 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sipariş Yönetimi</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<div class="header">
+  <a class="badge" href="/admin/index.html">← Geri</a>
+  <b id="pageTitle">Sipariş Yönetimi</b>
+  <a class="badge" href="#" id="logout">Çıkış</a>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <b>Etkinlik Seç</b>
+    <select class="input" id="eventSelect" style="margin-top:10px">
+      <option value="">Etkinlik seçin...</option>
+    </select>
+  </div>
+
+  <div id="ordersList"></div>
+
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+logout.onclick=()=>{
+  localStorage.removeItem("PIN");
+  location.href="/admin/login.html";
+};
+
+let selectedEventId = 0;
+
+async function loadEvents(){
+  const r = await apiGet('events.list');
+  if(!r.ok) return;
+
+  eventSelect.innerHTML = '<option value="">Etkinlik seçin...</option>' + 
+    r.events.map(e => `<option value="${e.id}">${esc(e.title)} - ${esc(e.event_date)}</option>`).join('');
+}
+
+eventSelect.onchange = async ()=>{
+  selectedEventId = +eventSelect.value;
+  if(selectedEventId > 0){
+    await loadOrders();
+  } else {
+    ordersList.innerHTML = '';
+  }
+};
+
+async function loadOrders(){
+  if(!selectedEventId){
+    ordersList.innerHTML = '';
+    return;
+  }
+
+  const r = await apiGet('order.list', {event_id: selectedEventId});
+  if(!r.ok){
+    ordersList.innerHTML = `<div class="card"><b>Hata:</b> ${esc(r.error||'')}</div>`;
+    return;
+  }
+
+  if(r.orders.length === 0){
+    ordersList.innerHTML = `<div class="card">Bu etkinlik için sipariş bulunamadı.</div>`;
+    return;
+  }
+
+  ordersList.innerHTML = r.orders.map(order => {
+    const statusBadge = {
+      'PENDING': '<span class="badge" style="background:#ff9800;color:#fff">BEKLİYOR</span>',
+      'PREPARING': '<span class="badge" style="background:#2196f3;color:#fff">HAZIRLANIYOR</span>',
+      'READY': '<span class="badge" style="background:#4caf50;color:#fff">HAZIR</span>',
+      'DELIVERED': '<span class="badge" style="background:#8bc34a;color:#fff">TESLİM EDİLDİ</span>',
+      'CANCELLED': '<span class="badge" style="background:#f44336;color:#fff">İPTAL</span>'
+    }[order.status] || order.status;
+
+    const itemsHtml = (order.items || []).map(item => `
+      <div class="small">
+        ${item.quantity}x ${esc(item.item_name)} - ${item.unit_price} TL
+        ${item.notes ? `<i>(${esc(item.notes)})</i>` : ''}
+      </div>
+    `).join('');
+
+    const totalPrice = parseFloat(order.total_price || 0).toFixed(2);
+
+    return `
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:flex-start">
+          <div>
+            <b>Sipariş #${order.id}</b> ${statusBadge}
+            <div class="small">Masa: <b>${esc(order.table_code)}</b></div>
+            <div class="small">Oluşturan: ${esc(order.created_by)} - ${esc(order.created_at)}</div>
+            <div style="height:8px"></div>
+            ${itemsHtml}
+            <div style="height:8px"></div>
+            <div style="font-weight:900">Toplam: ${totalPrice} TL</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${order.status === 'PENDING' ? `<button class="btn primary" onclick="updateStatus(${order.id}, 'PREPARING')">Hazırla</button>` : ''}
+            ${order.status === 'PREPARING' ? `<button class="btn primary" onclick="updateStatus(${order.id}, 'READY')">Hazır</button>` : ''}
+            ${order.status === 'READY' ? `<button class="btn primary" onclick="updateStatus(${order.id}, 'DELIVERED')">Teslim Et</button>` : ''}
+            ${order.status !== 'CANCELLED' && order.status !== 'DELIVERED' ? `<button class="btn gray" onclick="updateStatus(${order.id}, 'CANCELLED')">İptal</button>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function updateStatus(orderId, newStatus){
+  const r = await apiPost('order.update_status', {
+    order_id: orderId,
+    status: newStatus
+  });
+
+  if(!r.ok){
+    alert('Durum güncellenemedi: ' + (r.error||''));
+    return;
+  }
+
+  await loadOrders();
+}
+
+async function boot(){
+  await whoAmI();
+  await loadEvents();
+}
+
+boot();
+</script>
+
+</body>
+</html>

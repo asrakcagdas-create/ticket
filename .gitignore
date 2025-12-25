@@ -1,0 +1,25 @@
+# Dependencies
+/api/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+/tmp/
+*.tmp
+*.log
+
+# Build artifacts
+*.cache
+
+# Config (if contains sensitive data)
+# Uncomment if needed:
+# api/config.php
