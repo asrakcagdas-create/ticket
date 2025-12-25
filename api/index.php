@@ -608,6 +608,194 @@ try {
       break;
     }
 
+    case 'menu.list': {
+      auth_user_safe();
+      if(!table_exists('menu_items')){
+        json_out(['ok'=>true,'items'=>[]]);
+      }
+      $st = db()->query("SELECT * FROM menu_items WHERE is_active=1 ORDER BY category, name");
+      json_out(['ok'=>true,'items'=>$st->fetchAll()]);
+      break;
+    }
+
+    case 'menu.create': {
+      $u = auth_user_safe();
+      if(($u['role'] ?? '') !== 'admin'){
+        json_out(['ok'=>false,'error'=>'forbidden'],403);
+      }
+      $b = body_json();
+      $name = trim((string)($b['name'] ?? ''));
+      $category = trim((string)($b['category'] ?? ''));
+      $price = (float)($b['price'] ?? 0);
+
+      if($name==='' || $category==='' || $price<=0){
+        json_out(['ok'=>false,'error'=>'name + category + price required'],400);
+      }
+
+      if(!table_exists('menu_items')){
+        db()->exec("CREATE TABLE menu_items (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          category VARCHAR(50) NOT NULL,
+          price DECIMAL(10,2) NOT NULL,
+          is_active TINYINT(1) DEFAULT 1,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+      }
+
+      db()->prepare("INSERT INTO menu_items (name, category, price) VALUES (?,?,?)")
+        ->execute([$name, $category, $price]);
+      $id = (int)db()->lastInsertId();
+      log_action($u['name'],'MENU_CREATE','menu_item',$id,['name'=>$name,'category'=>$category,'price'=>$price]);
+      json_out(['ok'=>true,'item_id'=>$id]);
+      break;
+    }
+
+    case 'order.create': {
+      $u = auth_user_safe();
+      $b = body_json();
+      $eventId = (int)($b['event_id'] ?? 0);
+      $groupId = (int)($b['group_id'] ?? 0);
+      $items = $b['items'] ?? [];
+
+      if($eventId<=0 || $groupId<=0 || !is_array($items) || count($items)===0){
+        json_out(['ok'=>false,'error'=>'event_id + group_id + items required'],400);
+      }
+
+      // Verify group exists
+      $gst = db()->prepare("SELECT group_code FROM event_table_groups WHERE id=? AND event_id=? AND deleted_at IS NULL");
+      $gst->execute([$groupId, $eventId]);
+      $group = $gst->fetch();
+      if(!$group) json_out(['ok'=>false,'error'=>'group not found'],404);
+
+      // Create tables if needed
+      if(!table_exists('orders')){
+        db()->exec("CREATE TABLE orders (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          event_id INT NOT NULL,
+          group_id INT NOT NULL,
+          table_code VARCHAR(255),
+          status VARCHAR(20) DEFAULT 'PENDING',
+          created_by VARCHAR(100),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          completed_at TIMESTAMP NULL,
+          INDEX idx_event_group (event_id, group_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+      }
+
+      if(!table_exists('order_items')){
+        db()->exec("CREATE TABLE order_items (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          order_id INT NOT NULL,
+          menu_item_id INT NOT NULL,
+          item_name VARCHAR(255) NOT NULL,
+          quantity INT NOT NULL,
+          unit_price DECIMAL(10,2) NOT NULL,
+          notes TEXT,
+          FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+      }
+
+      db()->beginTransaction();
+
+      // Create order
+      db()->prepare("INSERT INTO orders (event_id, group_id, table_code, created_by) VALUES (?,?,?,?)")
+        ->execute([$eventId, $groupId, $group['group_code'], $u['name']]);
+      $orderId = (int)db()->lastInsertId();
+
+      // Add items
+      $insItem = db()->prepare("INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, unit_price, notes) VALUES (?,?,?,?,?,?)");
+      foreach($items as $item){
+        $menuItemId = (int)($item['menu_item_id'] ?? 0);
+        $quantity = (int)($item['quantity'] ?? 0);
+        $notes = trim((string)($item['notes'] ?? ''));
+
+        if($menuItemId<=0 || $quantity<=0) continue;
+
+        // Get menu item details
+        $mst = db()->prepare("SELECT name, price FROM menu_items WHERE id=? AND is_active=1");
+        $mst->execute([$menuItemId]);
+        $menuItem = $mst->fetch();
+        if(!$menuItem) continue;
+
+        $insItem->execute([$orderId, $menuItemId, $menuItem['name'], $quantity, $menuItem['price'], $notes]);
+      }
+
+      db()->commit();
+
+      log_action($u['name'],'ORDER_CREATE','order',$orderId,['event_id'=>$eventId,'group_id'=>$groupId,'items'=>count($items)]);
+      json_out(['ok'=>true,'order_id'=>$orderId]);
+      break;
+    }
+
+    case 'order.list': {
+      auth_user_safe();
+      $eventId = (int)($_GET['event_id'] ?? 0);
+      $groupId = (int)($_GET['group_id'] ?? 0);
+
+      if(!table_exists('orders')){
+        json_out(['ok'=>true,'orders'=>[]]);
+      }
+
+      $where = [];
+      $params = [];
+      if($eventId > 0){
+        $where[] = "o.event_id = ?";
+        $params[] = $eventId;
+      }
+      if($groupId > 0){
+        $where[] = "o.group_id = ?";
+        $params[] = $groupId;
+      }
+
+      $whereClause = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
+
+      $st = db()->prepare("
+        SELECT o.*, 
+          (SELECT SUM(oi.quantity * oi.unit_price) FROM order_items oi WHERE oi.order_id = o.id) AS total_price
+        FROM orders o
+        $whereClause
+        ORDER BY o.id DESC
+        LIMIT 100
+      ");
+      $st->execute($params);
+      $orders = $st->fetchAll();
+
+      // Get items for each order
+      foreach($orders as &$order){
+        $items = db()->prepare("SELECT * FROM order_items WHERE order_id=?");
+        $items->execute([$order['id']]);
+        $order['items'] = $items->fetchAll();
+      }
+
+      json_out(['ok'=>true,'orders'=>$orders]);
+      break;
+    }
+
+    case 'order.update_status': {
+      $u = auth_user_safe();
+      $b = body_json();
+      $orderId = (int)($b['order_id'] ?? 0);
+      $status = trim((string)($b['status'] ?? ''));
+
+      if($orderId<=0 || $status===''){
+        json_out(['ok'=>false,'error'=>'order_id + status required'],400);
+      }
+
+      if(!in_array($status, ['PENDING','PREPARING','READY','DELIVERED','CANCELLED'], true)){
+        json_out(['ok'=>false,'error'=>'invalid status'],400);
+      }
+
+      $completed = ($status === 'DELIVERED' || $status === 'CANCELLED') ? "NOW()" : "NULL";
+      
+      db()->prepare("UPDATE orders SET status=?, completed_at=$completed WHERE id=?")
+        ->execute([$status, $orderId]);
+
+      log_action($u['name'],'ORDER_UPDATE_STATUS','order',$orderId,['status'=>$status]);
+      json_out(['ok'=>true]);
+      break;
+    }
+
     default:
       json_out(['ok'=>false,'error'=>'unknown route'],404);
   }

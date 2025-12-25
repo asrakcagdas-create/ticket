@@ -45,6 +45,18 @@
 <div id="suggestions"></div>
 <div id="activeGroup"></div>
 
+<!-- SİPARİŞ PANELİ -->
+<div class="card" id="orderPanel" style="display:none">
+  <b>Sipariş Ver</b>
+  <div class="small">Aktif grup için sipariş oluştur</div>
+  <div style="height:10px"></div>
+  <div id="menuItems"></div>
+  <div style="height:10px"></div>
+  <button class="btn primary" onclick="submitOrder()" style="width:100%">Siparişi Gönder</button>
+</div>
+
+<div id="groupOrders"></div>
+
 <!-- YÖNETİM PANELLERİ -->
 <div class="card">
   <b>Yönetim</b>
@@ -53,6 +65,7 @@
   <div class="row" style="gap:8px;flex-wrap:wrap">
     <button class="btn gray" onclick="loadGroups()">Grupları Yenile</button>
     <button class="btn gray" onclick="loadTickets()">Biletleri Yenile</button>
+    <button class="btn gray" onclick="toggleOrderPanel()">Sipariş Ver</button>
   </div>
 </div>
 
@@ -225,6 +238,9 @@ async function refreshGroup(){
       </div>
     </div>
   `;
+  
+  // Load orders for this group
+  await loadGroupOrders();
 }
 
 function renderTicket(ticketNo, qrUrl){
@@ -373,6 +389,171 @@ async function cancelTicket(ticketId){
   await loadTickets();
   if(activeGroupId) await refreshGroup();
 }
+
+/* ====================== SİPARİŞ YÖNETİMİ ====================== */
+
+let menuItemsData = [];
+let orderCart = {};
+
+async function toggleOrderPanel(){
+  if(!activeGroupId){
+    alert('Önce bir grup aktif yapın');
+    return;
+  }
+
+  const isVisible = orderPanel.style.display !== 'none';
+  if(isVisible){
+    orderPanel.style.display = 'none';
+  } else {
+    await loadMenuItems();
+    orderPanel.style.display = 'block';
+    await loadGroupOrders();
+  }
+}
+
+async function loadMenuItems(){
+  const r = await apiGet('menu.list');
+  if(!r.ok){
+    menuItems.innerHTML = `<div class="small"><b>Hata:</b> ${esc(r.error||'')}</div>`;
+    return;
+  }
+
+  if(r.items.length === 0){
+    menuItems.innerHTML = `<div class="small">Menü ürünü bulunamadı. <a href="/admin/menu.html">Menü yönetimine git</a></div>`;
+    return;
+  }
+
+  menuItemsData = r.items;
+  orderCart = {};
+
+  // Group by category
+  const byCategory = {};
+  for(const item of r.items){
+    const cat = item.category || 'Diğer';
+    if(!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(item);
+  }
+
+  let html = '';
+  for(const [cat, items] of Object.entries(byCategory)){
+    html += `<div style="margin-top:8px"><b class="small">${esc(cat)}</b></div>`;
+    for(const item of items){
+      html += `
+        <div class="row" style="justify-content:space-between;align-items:center;margin-top:6px;padding:6px;background:#f5f5f5;border-radius:8px">
+          <div>
+            <b>${esc(item.name)}</b>
+            <span class="small">${item.price} TL</span>
+          </div>
+          <div class="row" style="gap:6px;align-items:center">
+            <button class="btn gray" onclick="changeQuantity(${item.id}, -1)" style="padding:4px 8px">-</button>
+            <span id="qty_${item.id}" style="min-width:20px;text-align:center">0</span>
+            <button class="btn gray" onclick="changeQuantity(${item.id}, 1)" style="padding:4px 8px">+</button>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  menuItems.innerHTML = html;
+}
+
+function changeQuantity(itemId, delta){
+  if(!orderCart[itemId]) orderCart[itemId] = 0;
+  orderCart[itemId] += delta;
+  if(orderCart[itemId] < 0) orderCart[itemId] = 0;
+  
+  const qtyEl = document.getElementById('qty_' + itemId);
+  if(qtyEl) qtyEl.innerText = orderCart[itemId];
+}
+
+async function submitOrder(){
+  if(!activeGroupId){
+    alert('Aktif grup yok');
+    return;
+  }
+
+  const items = [];
+  for(const [itemId, quantity] of Object.entries(orderCart)){
+    if(quantity > 0){
+      items.push({
+        menu_item_id: parseInt(itemId),
+        quantity: quantity,
+        notes: ''
+      });
+    }
+  }
+
+  if(items.length === 0){
+    alert('Sipariş boş. En az bir ürün ekleyin.');
+    return;
+  }
+
+  const r = await apiPost('order.create', {
+    event_id: event_id,
+    group_id: activeGroupId,
+    items: items
+  });
+
+  if(!r.ok){
+    alert('Sipariş oluşturulamadı: ' + (r.error||''));
+    return;
+  }
+
+  alert('Sipariş oluşturuldu!');
+  orderCart = {};
+  await loadMenuItems();
+  await loadGroupOrders();
+}
+
+async function loadGroupOrders(){
+  if(!activeGroupId){
+    groupOrders.innerHTML = '';
+    return;
+  }
+
+  const r = await apiGet('order.list', {group_id: activeGroupId});
+  if(!r.ok){
+    groupOrders.innerHTML = '';
+    return;
+  }
+
+  if(r.orders.length === 0){
+    groupOrders.innerHTML = '';
+    return;
+  }
+
+  groupOrders.innerHTML = `
+    <div class="card">
+      <b>Bu Grubun Siparişleri</b>
+      <div style="height:8px"></div>
+      ${r.orders.map(order => {
+        const statusBadge = {
+          'PENDING': '<span class="badge" style="background:#ff9800;color:#fff">BEKLİYOR</span>',
+          'PREPARING': '<span class="badge" style="background:#2196f3;color:#fff">HAZIRLANIYOR</span>',
+          'READY': '<span class="badge" style="background:#4caf50;color:#fff">HAZIR</span>',
+          'DELIVERED': '<span class="badge" style="background:#8bc34a;color:#fff">TESLİM EDİLDİ</span>',
+          'CANCELLED': '<span class="badge" style="background:#f44336;color:#fff">İPTAL</span>'
+        }[order.status] || order.status;
+
+        const itemsHtml = (order.items || []).map(item => 
+          `<div class="small">${item.quantity}x ${esc(item.item_name)} - ${item.unit_price} TL</div>`
+        ).join('');
+
+        const totalPrice = parseFloat(order.total_price || 0).toFixed(2);
+
+        return `
+          <div style="margin-top:10px;padding:8px;background:#f9f9f9;border-radius:8px">
+            <div><b>Sipariş #${order.id}</b> ${statusBadge}</div>
+            <div class="small">Oluşturan: ${esc(order.created_by)}</div>
+            ${itemsHtml}
+            <div style="margin-top:4px"><b>Toplam: ${totalPrice} TL</b></div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 </script>
 
 </body>
