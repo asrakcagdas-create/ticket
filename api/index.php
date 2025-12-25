@@ -697,6 +697,20 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
       }
 
+      // Batch fetch menu items to avoid N+1 queries
+      $menuItemIds = array_filter(array_map(fn($item) => (int)($item['menu_item_id'] ?? 0), $items), fn($id) => $id > 0);
+      if(count($menuItemIds) === 0){
+        json_out(['ok'=>false,'error'=>'no valid items'],400);
+      }
+
+      $placeholders = implode(',', array_fill(0, count($menuItemIds), '?'));
+      $menuSt = db()->prepare("SELECT id, name, price FROM menu_items WHERE id IN ($placeholders) AND is_active=1");
+      $menuSt->execute($menuItemIds);
+      $menuItemsMap = [];
+      foreach($menuSt->fetchAll() as $mi){
+        $menuItemsMap[(int)$mi['id']] = $mi;
+      }
+
       db()->beginTransaction();
 
       // Create order
@@ -706,25 +720,28 @@ try {
 
       // Add items
       $insItem = db()->prepare("INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, unit_price, notes) VALUES (?,?,?,?,?,?)");
+      $addedCount = 0;
       foreach($items as $item){
         $menuItemId = (int)($item['menu_item_id'] ?? 0);
         $quantity = (int)($item['quantity'] ?? 0);
         $notes = trim((string)($item['notes'] ?? ''));
 
         if($menuItemId<=0 || $quantity<=0) continue;
+        if(!isset($menuItemsMap[$menuItemId])) continue;
 
-        // Get menu item details
-        $mst = db()->prepare("SELECT name, price FROM menu_items WHERE id=? AND is_active=1");
-        $mst->execute([$menuItemId]);
-        $menuItem = $mst->fetch();
-        if(!$menuItem) continue;
-
+        $menuItem = $menuItemsMap[$menuItemId];
         $insItem->execute([$orderId, $menuItemId, $menuItem['name'], $quantity, $menuItem['price'], $notes]);
+        $addedCount++;
+      }
+
+      if($addedCount === 0){
+        db()->rollBack();
+        json_out(['ok'=>false,'error'=>'no valid items added'],400);
       }
 
       db()->commit();
 
-      log_action($u['name'],'ORDER_CREATE','order',$orderId,['event_id'=>$eventId,'group_id'=>$groupId,'items'=>count($items)]);
+      log_action($u['name'],'ORDER_CREATE','order',$orderId,['event_id'=>$eventId,'group_id'=>$groupId,'items'=>$addedCount]);
       json_out(['ok'=>true,'order_id'=>$orderId]);
       break;
     }

@@ -462,7 +462,7 @@ function changeQuantity(itemId, delta){
   orderCart[itemId] += delta;
   if(orderCart[itemId] < 0) orderCart[itemId] = 0;
   
-  const qtyEl = document.getElementById('qty_' + itemId);
+  const qtyEl = $('qty_' + itemId);
   if(qtyEl) qtyEl.innerText = orderCart[itemId];
 }
 
