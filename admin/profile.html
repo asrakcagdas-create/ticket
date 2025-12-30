@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Profil</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<div class="header">
+  <a class="badge" href="/admin/index.html">← Geri</a>
+  <b>Profil</b>
+  <a class="badge" href="#" id="logout">Çıkış</a>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <div style="font-weight:900;font-size:18px">Kullanıcı Bilgileri</div>
+    <div style="height:10px"></div>
+    
+    <div class="small">Ad:</div>
+    <div style="font-weight:700;margin-top:4px" id="userName">-</div>
+    
+    <div class="small" style="margin-top:12px">Rol:</div>
+    <div style="font-weight:700;margin-top:4px" id="userRole">-</div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:900;font-size:18px">PIN Değiştir</div>
+    <div class="small">6 haneli yeni PIN girin</div>
+    <div style="height:10px"></div>
+    
+    <input class="input" id="currentPin" type="password" inputmode="numeric" maxlength="6" placeholder="Mevcut PIN" style="margin-top:8px">
+    <input class="input" id="newPin" type="password" inputmode="numeric" maxlength="6" placeholder="Yeni PIN" style="margin-top:8px">
+    <input class="input" id="confirmPin" type="password" inputmode="numeric" maxlength="6" placeholder="Yeni PIN (Tekrar)" style="margin-top:8px">
+    
+    <button class="btn primary" id="changePin" style="margin-top:10px;width:100%">PIN Değiştir</button>
+    <div id="pinMsg" class="small" style="margin-top:10px"></div>
+  </div>
+
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+logout.onclick=()=>{
+  localStorage.removeItem("PIN");
+  location.href="/admin/login.html";
+};
+
+async function loadProfile(){
+  const me = await whoAmI();
+  if(me){
+    userName.innerText = me.name || '-';
+    userRole.innerText = me.role || '-';
+  }
+}
+
+changePin.onclick = async ()=>{
+  const current = currentPin.value.trim();
+  const newP = newPin.value.trim();
+  const confirm = confirmPin.value.trim();
+
+  if(current.length < 6 || newP.length < 6 || confirm.length < 6){
+    pinMsg.innerText = "❌ Tüm PIN'ler 6 haneli olmalı";
+    pinMsg.style.color = "#b71c1c";
+    return;
+  }
+
+  if(newP !== confirm){
+    pinMsg.innerText = "❌ Yeni PIN'ler eşleşmiyor";
+    pinMsg.style.color = "#b71c1c";
+    return;
+  }
+
+  if(current !== getPIN()){
+    pinMsg.innerText = "❌ Mevcut PIN yanlış";
+    pinMsg.style.color = "#b71c1c";
+    return;
+  }
+
+  const r = await apiPost('user.change_pin', {
+    current_pin: current,
+    new_pin: newP
+  });
+
+  if(!r.ok){
+    pinMsg.innerText = "❌ " + (r.error || 'Hata oluştu');
+    pinMsg.style.color = "#b71c1c";
+    return;
+  }
+
+  pinMsg.innerText = "✅ PIN başarıyla değiştirildi";
+  pinMsg.style.color = "#2e7d32";
+  
+  // Update stored PIN
+  localStorage.setItem("PIN", newP);
+  
+  // Clear inputs
+  currentPin.value = "";
+  newPin.value = "";
+  confirmPin.value = "";
+};
+
+loadProfile();
+</script>
+
+</body>
+</html>

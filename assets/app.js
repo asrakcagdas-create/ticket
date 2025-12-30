@@ -1,5 +1,9 @@
 // /assets/app.js
 
+function $(selector){
+  return document.querySelector(selector);
+}
+
 function getPIN(){
   return localStorage.getItem("PIN") || "";
 }
