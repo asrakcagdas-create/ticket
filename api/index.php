@@ -608,6 +608,47 @@ try {
       break;
     }
 
+    case 'user.change_pin': {
+      $u = auth_user_safe();
+      $b = body_json();
+      $currentPin = trim((string)($b['current_pin'] ?? ''));
+      $newPin = trim((string)($b['new_pin'] ?? ''));
+
+      if($currentPin === '' || $newPin === '') {
+        json_out(['ok'=>false,'error'=>'current_pin and new_pin required'],400);
+      }
+
+      if(strlen($newPin) < 6) {
+        json_out(['ok'=>false,'error'=>'new_pin must be at least 6 characters'],400);
+      }
+
+      // Check if users table exists
+      if(!table_exists('users')) {
+        json_out(['ok'=>false,'error'=>'users table does not exist'],400);
+      }
+
+      // Get current authenticated user's PIN from header
+      $storedPin = $_SERVER['HTTP_X_PIN'] ?? '';
+      
+      // Verify that the user provided the correct current PIN using hash_equals to prevent timing attacks
+      if(!hash_equals($storedPin, $currentPin)) {
+        json_out(['ok'=>false,'error'=>'current_pin incorrect'],400);
+      }
+
+      // Update PIN in database using the authenticated PIN, not user ID
+      // Since this system uses PIN-based auth without user IDs exposed
+      $st = db()->prepare("UPDATE users SET pin=? WHERE pin=? AND is_active=1");
+      $st->execute([$newPin, $storedPin]);
+
+      if($st->rowCount() === 0) {
+        json_out(['ok'=>false,'error'=>'user not found or PIN update failed'],400);
+      }
+
+      log_action($u['name'],'USER_CHANGE_PIN','user',null,[]);
+      json_out(['ok'=>true]);
+      break;
+    }
+
     default:
       json_out(['ok'=>false,'error'=>'unknown route'],404);
   }

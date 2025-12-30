@@ -1,7 +1,16 @@
 // /assets/app.js
 
+function $(selector){
+  return document.querySelector(selector);
+}
+
 function getPIN(){
   return localStorage.getItem("PIN") || "";
+}
+
+function doLogout(){
+  localStorage.removeItem("PIN");
+  location.href="/admin/login.html";
 }
 
 async function apiGet(route, params={}){
