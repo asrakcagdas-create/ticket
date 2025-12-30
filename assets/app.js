@@ -8,6 +8,11 @@ function getPIN(){
   return localStorage.getItem("PIN") || "";
 }
 
+function doLogout(){
+  localStorage.removeItem("PIN");
+  location.href="/admin/login.html";
+}
+
 async function apiGet(route, params={}){
   const url = new URL("/api/index.php", location.origin);
   url.searchParams.set("r", route);

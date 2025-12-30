@@ -39,10 +39,7 @@
 
 <script src="/assets/app.js"></script>
 <script>
-logout.onclick=()=>{
-  localStorage.removeItem("PIN");
-  location.href="/admin/login.html";
-};
+logout.onclick = doLogout;
 
 async function load(){
   const me = await whoAmI();

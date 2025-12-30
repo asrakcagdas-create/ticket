@@ -32,9 +32,14 @@
     <div class="small">6 haneli yeni PIN girin</div>
     <div style="height:10px"></div>
     
-    <input class="input" id="currentPin" type="password" inputmode="numeric" maxlength="6" placeholder="Mevcut PIN" style="margin-top:8px">
-    <input class="input" id="newPin" type="password" inputmode="numeric" maxlength="6" placeholder="Yeni PIN" style="margin-top:8px">
-    <input class="input" id="confirmPin" type="password" inputmode="numeric" maxlength="6" placeholder="Yeni PIN (Tekrar)" style="margin-top:8px">
+    <label for="currentPin" class="small">Mevcut PIN:</label>
+    <input class="input" id="currentPin" type="password" inputmode="numeric" maxlength="6" placeholder="Mevcut PIN" style="margin-top:4px">
+    
+    <label for="newPin" class="small" style="margin-top:8px;display:block">Yeni PIN:</label>
+    <input class="input" id="newPin" type="password" inputmode="numeric" maxlength="6" placeholder="Yeni PIN" style="margin-top:4px">
+    
+    <label for="confirmPin" class="small" style="margin-top:8px;display:block">Yeni PIN (Tekrar):</label>
+    <input class="input" id="confirmPin" type="password" inputmode="numeric" maxlength="6" placeholder="Yeni PIN (Tekrar)" style="margin-top:4px">
     
     <button class="btn primary" id="changePin" style="margin-top:10px;width:100%">PIN Değiştir</button>
     <div id="pinMsg" class="small" style="margin-top:10px"></div>
@@ -44,10 +49,7 @@
 
 <script src="/assets/app.js"></script>
 <script>
-logout.onclick=()=>{
-  localStorage.removeItem("PIN");
-  location.href="/admin/login.html";
-};
+logout.onclick = doLogout;
 
 async function loadProfile(){
   const me = await whoAmI();
@@ -70,12 +72,6 @@ changePin.onclick = async ()=>{
 
   if(newP !== confirm){
     pinMsg.innerText = "❌ Yeni PIN'ler eşleşmiyor";
-    pinMsg.style.color = "#b71c1c";
-    return;
-  }
-
-  if(current !== getPIN()){
-    pinMsg.innerText = "❌ Mevcut PIN yanlış";
     pinMsg.style.color = "#b71c1c";
     return;
   }
